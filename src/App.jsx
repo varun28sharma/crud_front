@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import './App.css';
 
 function App() {
@@ -13,32 +12,55 @@ function App() {
   const [products, setProducts] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
 
+  // Local storage key
+  const STORAGE_KEY = 'crud_front_products';
+
   const handleChange = (e) => {
     setProduct({ ...product, [e.target.name]: e.target.value });
   };
-const BASE_URL = 'http://localhost:8080/springapp1';
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    try {
-      if (isEditing) {
-        await axios.put(`${BASE_URL}/update`, product);
-        alert('Update successful');
-        setIsEditing(false);
-      } else {
-        await axios.post(`${BASE_URL}/insert`, product);
-        alert('Insert successful');
-      }
-      setProduct({ id: '', name: '', os: '', price: '' });
-      fetchProducts();
-    } catch (error) {
-      console.error('Error:', error);
-      alert('Operation failed');
+    // Validate basic fields
+    if (!product.id || !product.name || !product.os || !product.price) {
+      alert('Please fill in all fields.');
+      return;
     }
+
+    // Load existing from localStorage
+    const current = loadProducts();
+
+    if (isEditing) {
+      // Update existing by id
+      const idx = current.findIndex((p) => String(p.id) === String(product.id));
+      if (idx === -1) {
+        alert('Item not found for update.');
+        return;
+      }
+      const updated = [...current];
+      updated[idx] = { ...product };
+      saveProducts(updated);
+      setProducts(updated);
+      alert('Update successful (local)');
+      setIsEditing(false);
+    } else {
+      // Prevent duplicate IDs
+      const exists = current.some((p) => String(p.id) === String(product.id));
+      if (exists) {
+        alert('ID already exists. Please use a unique ID.');
+        return;
+      }
+      const updated = [...current, { ...product }];
+      saveProducts(updated);
+      setProducts(updated);
+      alert('Insert successful (local)');
+    }
+
+    // Reset form
+    setProduct({ id: '', name: '', os: '', price: '' });
   };
 
-  const fetchProducts = async () => {
-    const res = await axios.get(`${BASE_URL}/display`);
-    setProducts(res.data);
+  const fetchProducts = () => {
+    setProducts(loadProducts());
   };
 
   const editProduct = (p) => {
@@ -46,15 +68,7 @@ const BASE_URL = 'http://localhost:8080/springapp1';
     setIsEditing(true);
   };
 
-  /*
-  const deleteProduct = async (id) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
-      await axios.delete(`${BASE_URL}/delete/${id}`);
-      alert('Delete successful');
-      fetchProducts();
-    }
-  };
-  */
+  // Optional delete logic can be added later if needed.
 
   useEffect(() => {
     fetchProducts();
@@ -167,14 +181,13 @@ const BASE_URL = 'http://localhost:8080/springapp1';
                 >
                   Edit
                 </button>
-                {/*
-                <button
+                {/* Enable delete by uncommenting if desired */}
+                {/* <button
                   className="btn btn-danger btn-sm"
                   onClick={() => deleteProduct(p.id)}
                 >
                   Delete
-                </button>
-                */}
+                </button> */}
               </td>
             </tr>
           ))}
@@ -185,3 +198,21 @@ const BASE_URL = 'http://localhost:8080/springapp1';
 }
 
 export default App;
+
+// Helpers for local storage persistence
+function loadProducts() {
+  try {
+    const raw = localStorage.getItem('crud_front_products');
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveProducts(list) {
+  try {
+    localStorage.setItem('crud_front_products', JSON.stringify(list));
+  } catch {
+    // ignore write errors
+  }
+}
